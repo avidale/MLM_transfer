@@ -90,7 +90,7 @@ class biLabelProcessor(DataProcessor):
 
     def get_labels(self, name):
         """See base class."""
-        if name in ['yelp', 'amazon', 'imagecaption']:
+        if name in ['yelp', 'amazon', 'imagecaption', 'toxic']:
             return ["0", "1"]
 
     def _create_examples(self, lines, set_type):
@@ -145,8 +145,16 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
         for index in masks:
             if index + 1 > max_seq_length - 1:
                 break
+            if index + 1 > len(tokens) - 1:
+                break
             #print(index+1)
-            masked_lm_labels[index+1] = tokenizer.convert_tokens_to_ids([tokens[index+1]])[0]
+            try:
+                masked_lm_labels[index+1] = tokenizer.convert_tokens_to_ids([tokens[index+1]])[0]
+            except IndexError as e:
+                print(tokens)
+                print(index, len(tokens), len(masked_lm_labels))
+                print(masked_lm_labels)
+                raise e
             output_tokens[index+1] = "[MASK]"
 
         init_ids = tokenizer.convert_tokens_to_ids(tokens)
@@ -190,8 +198,8 @@ def load_data():
     parser = argparse.ArgumentParser()
     ## Required parameters
     parser.add_argument("--data_dir", default=None, type=str)
-    parser.add_argument("--bert_model", default="{}/bert-base-uncased.tar.gz".format(PYTORCH_PRETRAINED_BERT_CACHE),
-                        type=str)
+    # parser.add_argument("--bert_model", default="{}/bert-base-uncased.tar.gz".format(PYTORCH_PRETRAINED_BERT_CACHE), type=str)  # bert_model = 'bert-base-uncased'
+    parser.add_argument("--bert_model", default='bert-base-uncased', type=str)
     parser.add_argument("--task_name", default=None, type=str)
     parser.add_argument("--output_dir", default=None, type=str, )
     parser.add_argument("--max_seq_length", default=32, type=int)
@@ -218,6 +226,7 @@ def load_data():
         "yelp": biLabelProcessor,
         "amazon": biLabelProcessor,
         "imagecaption": biLabelProcessor,
+        "toxic": biLabelProcessor,
     }
 
     if args.local_rank == -1 or args.no_cuda:

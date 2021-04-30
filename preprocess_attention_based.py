@@ -5,6 +5,7 @@ import numpy as np
 import torch.nn.functional as F
 from utils import read_data, clean_str, load_cls, load_vocab
 from functools import cmp_to_key
+from tqdm.auto import tqdm, trange
 import sys
 import json
 with open("run.config", 'rb') as f:
@@ -36,7 +37,7 @@ for l in fr:
 fr.close()
 
 line_num = min(len(lines), max_line)
-for i in range(0, line_num, batch_size):
+for i in trange(0, line_num, batch_size):
 	batch_range = min(batch_size, line_num - i)
 	batch_lines = lines[i:i + batch_range]
 	batch_x = [clean_str(sent) for sent in batch_lines]
@@ -49,13 +50,21 @@ for i in range(0, line_num, batch_size):
 				avg = torch.mean(att)
 			elif task_name == 'amazon':
 				avg = 0.4
+			else:
+				# I do not know what is the best value of this hyperparameter, so I just use the average of two.
+				avg = torch.mean(att) * 0.5 + 0.4 * 0.5
 			mask = att.gt(avg)
 			if sum(mask).item() == 0:
 				mask = torch.argmax(att).unsqueeze(0)
 			else:
-				mask = torch.nonzero(mask.squeeze()).squeeze(1)
+				# the argument of the inner squeeze keeps the single-token sentences 1D instead of making them scalars                
+				mask = torch.nonzero(mask.squeeze(1)).squeeze(1)
 			idx = mask.cpu().numpy()
-			idx = [int(ix) for ix in idx]
+			try:
+				idx = [int(ix) for ix in idx]
+			except:
+				print('error', idx, ':', att, '>', avg, '=', att.gt(avg))
+				idx = []
 			contents = []
 			for i in range(0, len(x)):
 				if i not in idx:

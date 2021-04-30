@@ -11,6 +11,9 @@ dict_num=float(sys.argv[4])
 dict_thre=float(sys.argv[5])
 
 
+MIN_LEN = 5
+
+
 def levenshteinDistance(s1, s2):
     if len(s1) > len(s2):
         s1, s2 = s2, s1
@@ -70,11 +73,14 @@ def cls_tf_idf(batch_lines):
 				avg = torch.mean(att)
 			elif sys.argv[7] == 'amazon':
 				avg = 0.4
+			else:
+				avg = torch.mean(att) * 0.5 + 0.4 * 0.5
 			mask = att.gt(avg)
 			if sum(mask).item() == 0:
 				mask = torch.argmax(att).unsqueeze(0)
 			else:
-				mask = torch.nonzero(mask.squeeze()).squeeze(1)
+				# the argument of the inner squeeze keeps the single-token sentences 1D instead of making them scalars 
+				mask = torch.nonzero(mask.squeeze(1)).squeeze(1)
 			idx = mask.cpu().numpy()
 			idx = [int(ix) for ix in idx]
 			contents = []
@@ -98,7 +104,7 @@ for line in f:
 	lim = min(4, ll / 2)
 	contents=[]
 	n_gram = 4
-	while (len(contents) < 5):
+	while (len(contents) < MIN_LEN):
 		content=''
 		style_dict=[]
 		for i in range(len(lines)):
@@ -127,7 +133,7 @@ for line in f:
 			break
 
 	processed_num += 1
-	if (len(contents) < 5):
+	if (len(contents) < MIN_LEN):
 		#print("++:{}".format(line))
 		fw.write(cls_tf_idf([line])[0])
 		fw.write("\n")

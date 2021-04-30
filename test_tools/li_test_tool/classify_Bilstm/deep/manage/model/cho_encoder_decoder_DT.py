@@ -26,6 +26,7 @@ class RnnEncoderDecoder(ModelManager) :
                           'hidden_dim': 512, 'charset': charset, 'shuffle': False,
                           'save_freq': 100}
         def get_params_file_name(key):
+            return 'fucking_toxic_name'
             if key == "amazon":
                 return "ChoEncoderDecoderDT_e73ad85a8576a7a1f9a55e9e322d6313"
             elif key == "yelp":

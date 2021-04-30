@@ -12,7 +12,7 @@ for line in f:
 	#if(len(lines)!=2 or 'play' in line):
 	if(len(lines)!=2):
 		continue
-	if(string.atof(lines[1])<5.0):
+	if(float(lines[1])<5.0):
 		break
 	ne_tree = ne_chunk(pos_tag(word_tokenize(lines[0])))
 	iob_tagged = tree2conlltags(ne_tree)

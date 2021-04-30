@@ -4,8 +4,12 @@ import string
 import json
 import os
 operation=sys.argv[3]
-dict_num=string.atof(sys.argv[4])
-dict_thre=string.atof(sys.argv[5])
+#dict_num=string.atof(sys.argv[4])
+dict_num=float(sys.argv[4])
+#dict_thre=string.atof(sys.argv[5])
+dict_thre=float(sys.argv[5])
+
+MIN_LEN = 5  # the default was five, but it is too small and should be make an additional tunable parameter
 
 def levenshteinDistance(s1, s2):
     if len(s1) > len(s2):
@@ -32,15 +36,17 @@ word_dict={}
 num=0
 for line in f:
 	try:
-		lines=line.strip().decode('utf-8').encode('gb18030').split('\t')
+		lines=line.strip().split('\t') # .decode('utf-8').encode('gb18030').split('\t')
 	except:
 		continue
 	if(len(lines)!=2):
 		continue
-	if(string.atof(lines[1])>dict_thre and num<dict_num):
+	if(float(lines[1])>dict_thre and num<dict_num):
 		word_dict[lines[0]]=1
 		num+=1
 f.close()
+
+print('dict size', len(word_dict))
 
 '''
 frname2 = os.path.join(os.curdir, sys.argv[8], sys.argv[7], sys.argv[2]+'.tf_idf'+'.cls.clean.'+operation)
@@ -54,7 +60,7 @@ for line in f2:
 		continue
 	if(len(lines)!=2):
 		continue
-	if(string.atof(lines[1])>0.6 and num<dict_num):
+	if(float(lines[1])>0.6 and num<dict_num):
 		word_dict2[lines[0]]=1
 		num+=1
 f2.close()
@@ -66,10 +72,13 @@ fw=open(fwname,'w')
 fwname2 = os.path.join(save_path, sys.argv[6]+'.unable.'+operation)
 fw2=open(fwname2,'w')
 
-processed_num =0
+total_num = 0
+skipped_num = 0
+touched_num = 0
+change_num = 0
 for line in f:
 	try:
-		lines=line.strip().decode('utf-8').encode('gb18030').split(' ')
+		lines=line.strip().split(' ') # .decode('utf-8').encode('gb18030').split(' ')
 		lines = ' '.join(lines).split() # Add by xing to remove extra space within sentence
 	except:
 		continue
@@ -77,7 +86,7 @@ for line in f:
 	lim = min(4, ll / 2)
 	contents=[]
 	n_gram = 4
-	while (len(contents) < 5):
+	while (len(contents) < MIN_LEN):
 		content=''
 		style_dict=[]
 		for i in range(len(lines)):
@@ -105,13 +114,16 @@ for line in f:
 		if n_gram == 0:
 			break
 
-	if (len(contents) < 5):
-		#print("++:{}".format(line))
+	total_num += 1
+	if (len(contents) < MIN_LEN):
+		#print("++:{} / {}".format(line, contents))
 		fw2.write(line)
+		skipped_num += 1
 		continue
+	touched_num += 1
 	masks = list(set(masks))
 	if masks!=[]:
-		processed_num += 1
+		change_num += 1
 		masks.sort()
 		if operation=='label':
 			style=sys.argv[1][-1]
@@ -125,4 +137,10 @@ for line in f:
 f.close()
 fw.close()
 fw2.close()
-print("processed_num={}".format(processed_num))
+print('skipped_num          ', skipped_num)
+print('total_num            ', total_num)
+print('touched_num          ', touched_num)
+print('change_num           ', change_num)
+print('changed ratio        ', change_num / total_num)
+print('touched ratio        ', touched_num / total_num)
+print('changed/touched ratio', change_num / touched_num)

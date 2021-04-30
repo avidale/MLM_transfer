@@ -7,10 +7,11 @@ from functools import cmp_to_key
 import sys
 import os
 import json
+from tqdm.auto import tqdm, trange
 
 preprocessed_data_dir=sys.argv[1]
 batch_size = 16
-max_line = 500000
+max_line = 100_000
 
 with open("run.config", 'rb') as f:
     configs_dict = json.load(f)
@@ -35,12 +36,12 @@ def cls_tf_idf(model, label):
         scores.append(score)
     fr.close()
 
-    lines = lines[:20000]
-    scores = scores[:20000]
+    #lines = lines[:20000]
+    #scores = scores[:20000]
     fw = open(os.path.join(preprocessed_data_dir, "{}/{}.train.{}.tf_idf.attn.label".format(task_name, task_name, label)), 'w')
     tf_idf = []
     line_num = min(len(lines), max_line)
-    for i in range(0, line_num, batch_size):
+    for i in trange(0, line_num, batch_size):
         batch_range = min(batch_size, line_num - i)
         batch_lines = lines[i:i + batch_range]
         batch_x = [clean_str(sent) for sent in lines[i:i + batch_range]]

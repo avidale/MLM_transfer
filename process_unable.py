@@ -40,6 +40,8 @@ def cls_tf_idf(model, label, split):
                     avg = torch.mean(att)
                 elif task_name == 'amazon':
                     avg = 0.4
+                else:
+                    avg = torch.mean(att) * 0.5 + 0.4 * 0.5
                 mask = att.gt(avg)
                 if sum(mask).item() == 0:
                     mask = torch.argmax(att).unsqueeze(0)

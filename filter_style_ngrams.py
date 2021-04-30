@@ -5,7 +5,8 @@ import os
 
 data_prefix=sys.argv[1]
 result_prefix=sys.argv[4]
-data_file_num=string.atoi(sys.argv[2])
+#data_file_num=string.atoi(sys.argv[2])
+data_file_num=int(sys.argv[2])
 negtive_array=[]
 def load_data(file_name):
 	f=open(file_name,'r')
@@ -38,6 +39,7 @@ def get_dict(sen_array):
         return tmp_dict
 num=0
 for tag in name_array:
+	print('processing tag', tag)
 	negtive_array=[]
 	positve_array=load_data(tag)
 	for i in name_array:
@@ -54,7 +56,7 @@ for tag in name_array:
                 	tf_idf[i]=(pos_dict[i]+1.0)/(neg_dict[i]+1.0)
         	else:
                 	tf_idf[i]=(pos_dict[i]+1.0)
-	tf_dif1=sorted(tf_idf.items(), lambda x, y: cmp(x[1], y[1]), reverse=True)
+	tf_dif1=sorted(tf_idf.items(), key=lambda x: x[1], reverse=True)
 	processed_dir = os.path.join(os.curdir, sys.argv[6], sys.argv[5])
 	if not os.path.exists(processed_dir):
 		os.makedirs(processed_dir)

@@ -6,11 +6,13 @@ import json
 import logging
 from pytorch_pretrained_bert import BertTokenizer, BertModel, BertForMaskedLM, BertConfig
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
+from tqdm.auto import tqdm, trange
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def load_model(model_name):
     weights_path = os.path.join(PYTORCH_PRETRAINED_BERT_CACHE, model_name)
@@ -158,6 +160,22 @@ def convert_example_to_feature(example, tokenizer, out_tokens=False):
     return [input_ids,masks,segment_ids, segment_id]
 
 
+def load_model_for_task(task='toxic', step='bert_ft_cls', config=None):
+    model_dir = os.path.join(PYTORCH_PRETRAINED_BERT_CACHE, task)
+    bert_name = 'CBertForMaskedLM_' + task
+    if step == "bert_ft_cls":
+        bert_name += '_w_cls' # 'CBertForMaskedLM_toxic_w_cls_epoch10_attention_based'
+        bert_name += '_epoch10'
+    else: # CBertForMaskedLM_toxic_epoch_10_attention_based
+        bert_name += '_epoch_10'
+    if config and config.get('modified'):
+        bert_name += config['modified']
+    path=os.path.join(model_dir, bert_name)
+    print(f'loadingg model from {path}')
+    model = load_model(path)
+    return model
+
+
 def main():
     config_file = sys.argv[1]
     step = sys.argv[2]
@@ -165,6 +183,7 @@ def main():
         configs_dict = json.load(f)
 
     task_name = configs_dict.get("task_name")
+    print('config:', configs_dict)
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', cache_dir=PYTORCH_PRETRAINED_BERT_CACHE)
     if task_name == "yelp":
         if step == "bert_st":
@@ -175,12 +194,31 @@ def main():
         elif step == "bert_ft_cls":
             bert_name = "{}/BertForMaskedLM_yelp_wo_label_w_cls_epoch10".format(task_name.lower())
             model = load_model(bert_name)
+    else:
+        model = load_model_for_task(task=task_name, step=step, config=configs_dict)
+
     model.cuda()
     model.eval()
-    run_transfer(model, tokenizer, task_name, model_name="cbert")
+    run_transfer(model, tokenizer, task_name, model_name="cbert", modified=configs_dict['modified'], step=step)
     #delete_transfer(model, tokenizer, task_name)
 
-def run_transfer(model, tokenizer, task_name, epoch=None, model_name=None, modified="", set="test"):
+
+def transfer_single_sample(example, tokenizer, model):
+    ids, masks, segment_ids, cls = convert_example_to_feature(example, tokenizer)
+    init_str = example[0]
+    init_cls = 1 - cls
+    ids_tensor = torch.tensor([ids])
+    segment_tensors = torch.tensor([segment_ids])
+    predictions = model(ids_tensor.cuda(), segment_tensors.cuda())
+    for masked_index in masks:
+        predicted_index = torch.argmax(predictions[0, masked_index]).item()
+        ids[masked_index] = predicted_index
+    tran_str = tokenizer.convert_ids_to_tokens(ids)
+    tran_str = rev_wordpiece(tran_str)
+    return tran_str
+
+    
+def run_transfer(model, tokenizer, task_name, epoch=None, model_name=None, modified="", set="test", step=""):
     data_dir = os.path.join(os.curdir, "processed_data" + modified, task_name + "/")
     train = get_transfer_examples(data_dir, "{}.data.label".format(set))
     if epoch:
@@ -189,6 +227,10 @@ def run_transfer(model, tokenizer, task_name, epoch=None, model_name=None, modif
         output_dir = os.path.join(os.curdir, "evaluation", "outputs", task_name + "/")
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
+    if modified:
+        output_dir = os.path.join(output_dir, step + modified)
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
     if epoch:
         transferred_save = os.path.join(output_dir, "transffered.epoch_{}".format(epoch))
         test_save_0 = os.path.join(output_dir, "sentiment.{}.0".format(set))
@@ -196,11 +238,12 @@ def run_transfer(model, tokenizer, task_name, epoch=None, model_name=None, modif
     else:
         test_save_0 = os.path.join(output_dir, "sentiment.{}.0.{}".format(set, model_name))
         test_save_1 = os.path.join(output_dir, "sentiment.{}.1.{}".format(set, model_name))
+    print(f'saving results to {output_dir} / {test_save_1}')
     if epoch:
         save_file = open(transferred_save, 'w')
     test_file_0 = open(test_save_0, 'w')
     test_file_1 = open(test_save_1, 'w')
-    for example in train:
+    for example in tqdm(train):
         ids, masks, segment_ids, cls = convert_example_to_feature(example, tokenizer)
         init_str = example[0]
         init_cls = 1 - cls

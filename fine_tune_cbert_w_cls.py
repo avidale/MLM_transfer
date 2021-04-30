@@ -9,7 +9,7 @@ import shutil
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import trange
+from tqdm import trange, tqdm
 import numpy as np
 
 from pytorch_pretrained_bert.modeling import BertForMaskedLM
@@ -127,6 +127,10 @@ def main():
         train_rate = 0.9989
         valid_rate = 0.00055
         test_rate = 0.00055
+    else:
+        train_rate = 0.9984
+        valid_rate = 0.0008
+        test_rate = 0.0008
 
     acc_save_dict = {}
     bleu_save_dict = {}
@@ -137,7 +141,7 @@ def main():
     for e in trange(int(args.num_train_epochs), desc="Epoch"):
         tr_loss, avg_loss, avg_acc = 0, 0, 0.
         nb_tr_examples, nb_tr_steps = 0, 0
-        for step, batch in enumerate(train_dataloader):
+        for step, batch in enumerate(tqdm(train_dataloader)):
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, label_ids = batch
             lm_loss, _ = model(input_ids, segment_ids, input_mask, label_ids)
@@ -167,6 +171,7 @@ def main():
 
             if (step + 1) % 250 == 0:
                 print("-------avg_loss: {}, lm_loss: {}--------".format(avg_loss / 250, lm_loss))
+            if (step + 1) % 250 == 0 and False:
                 run_transfer(model, tokenizer, task_name, model_name=model_name, modified=modified, set="dev")
                 dev_acc_0 = 1 - eval_acc(dict_file=dict_file, train_rate=train_rate, valid_rate=valid_rate,
                                          test_rate=test_rate, input_file=dev_file_0)
@@ -230,13 +235,14 @@ def main():
                 save_model_name = "CBertForMaskedLM_" + task_name + "_w_cls_epoch" + str(e + 1) + modified
                 save_model_path = os.path.join(save_model_dir, save_model_name)
                 torch.save(model, save_model_path)
-        cnt_best = count_dict[dev_acc_best]
-        acc_best = round(acc_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
-        bleu_best = round(bleu_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
-        _acc_best = round(_acc_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
-        _bleu_best = round(_bleu_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
-        print("Best result: dev_acc {} acc {} bleu {} _acc {} _bleu {}".format(
-            dev_acc_best, acc_best, bleu_best, _acc_best, _bleu_best))
+        if False:
+            cnt_best = count_dict[dev_acc_best]
+            acc_best = round(acc_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
+            bleu_best = round(bleu_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
+            _acc_best = round(_acc_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
+            _bleu_best = round(_bleu_save_dict[dev_acc_best] * 10.0 / cnt_best) / 10.0
+            print("Best result: dev_acc {} acc {} bleu {} _acc {} _bleu {}".format(
+                dev_acc_best, acc_best, bleu_best, _acc_best, _bleu_best))
 
 if __name__ == "__main__":
     main()

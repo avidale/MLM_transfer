@@ -10,12 +10,18 @@ from pytorch_pretrained_bert.modeling import BertForMaskedLM
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased", do_lower_case="True")
 
+if torch.cuda.is_available():
+    device = torch.device('cuda:0')
+else:
+    device = torch.device('cpu')
+
 with open("run.config", 'rb') as f:
     configs_dict = json.load(f)
 
 task_name = configs_dict.get("task_name")
 
 bert_model = os.path.join(PYTORCH_PRETRAINED_BERT_CACHE, "bert-base-uncased.tar.gz")
+bert_model = 'bert-base-uncased'
 
 def load_model(model_name):
     weights_path = os.path.join(PYTORCH_PRETRAINED_BERT_CACHE, model_name)
@@ -23,7 +29,7 @@ def load_model(model_name):
     return model
 
 model = BertForMaskedLM.from_pretrained(bert_model, cache_dir=PYTORCH_PRETRAINED_BERT_CACHE)
-model.cuda()
+model.to(device)
 model.eval()
 bert_embeddings = model.bert.embeddings.word_embeddings
 bert_embeddings.weight.requires_grad = False
@@ -53,8 +59,8 @@ class EncoderRNN(nn.Module):
         h0 = Variable(torch.zeros(1 * 2, b_size, self.h_dim))
         c0 = Variable(torch.zeros(1 * 2, b_size, self.h_dim))
         if self.gpu:
-            h0 = h0.cuda()
-            c0 = c0.cuda()
+            h0 = h0.to(device)#.cuda()
+            c0 = c0.to(device)#.cuda()
         return (h0, c0)
 
     def embedding(self, inp, ignore_step=False):
@@ -68,16 +74,16 @@ class EncoderRNN(nn.Module):
                 ids = tokenizer.convert_tokens_to_ids(output_tokens)
                 if len(ids) > self.MAX_SENT_LEN:
                     ids = ids[:self.MAX_SENT_LEN]
-                ids = Variable(torch.LongTensor(ids)).cuda()
+                ids = Variable(torch.LongTensor(ids)).to(device)#.cuda()
                 words_embedding = bert_embeddings(ids)
                 if len(ids) < self.MAX_SENT_LEN:
                     pad_len = self.MAX_SENT_LEN - len(ids)
                     emb_size = words_embedding.shape[1]
-                    pad = Variable(torch.FloatTensor(numpy.zeros((pad_len, emb_size)))).cuda()
+                    pad = Variable(torch.FloatTensor(numpy.zeros((pad_len, emb_size)))).to(device)#.cuda()
                     words_embedding = torch.cat((words_embedding, pad), 0)
                 words_embeddings.append(words_embedding)
             else:
-                words_embedding = Variable(torch.FloatTensor(numpy.zeros((self.MAX_SENT_LEN, self.emb_dim)))).cuda()
+                words_embedding = Variable(torch.FloatTensor(numpy.zeros((self.MAX_SENT_LEN, self.emb_dim)))).to(device)#.cuda()
                 words_embeddings.append(words_embedding)
         words_embeddings = torch.stack(words_embeddings)
         return words_embeddings
@@ -93,7 +99,7 @@ class EncoderRNN(nn.Module):
             while len(ids) < self.MAX_SENT_LEN:
                 ids.append(0)
             input_ids.append(ids[:self.MAX_SENT_LEN])
-        input_ids = Variable(torch.LongTensor(input_ids)).cuda()
+        input_ids = Variable(torch.LongTensor(input_ids)).to(device)#.cuda()
         masks = input_ids != 0
         words_embeddings = bert_embeddings(input_ids)
         return masks, words_embeddings
@@ -121,8 +127,8 @@ class Attn(nn.Module):
 
     def forward(self, encoder_outputs):
         b_size = encoder_outputs.size(0)
-        attn_ene = self.main(encoder_outputs.view(-1, self.h_dim))  # (b, s, h) -> (b * s, 1)
-        return F.softmax(attn_ene.view(b_size, -1), dim=1).unsqueeze(2)  # (b*s, 1) -> (b, s, 1)
+        attn_ene = self.main(encoder_outputs.reshape(-1, self.h_dim))  # (b, s, h) -> (b * s, 1)
+        return F.softmax(attn_ene.reshape(b_size, -1), dim=1).unsqueeze(2)  # (b*s, 1) -> (b, s, 1)
 
 
 class AttnClassifier(nn.Module):
@@ -144,8 +150,8 @@ class RNNAttnCls(nn.Module):
         super(RNNAttnCls, self).__init__()
         self.h_dim = kwargs["H_DIM"]
         self.class_size = kwargs["CLASS_SIZE"]
-        self.encoder = EncoderRNN(self.h_dim).cuda()
-        self.classifier = AttnClassifier(self.h_dim, self.class_size).cuda()
+        self.encoder = EncoderRNN(self.h_dim).to(device)#.cuda()
+        self.classifier = AttnClassifier(self.h_dim, self.class_size).to(device)#.cuda()
 
     def forward(self, sentence, ignore_step=False):
         encoder_outputs = self.encoder(sentence, ignore_step)

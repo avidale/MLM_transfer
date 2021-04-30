@@ -6,13 +6,20 @@ from utils import read_data, save_cls, load_cls
 from rnnattn_wd import RNNAttnCls
 import os
 import copy
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import numpy as np
 from sklearn.utils import shuffle
 from torch.autograd import Variable
 import argparse
 import json
+import gc
 
+
+def cleanup():
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    
 with open("run.config", 'rb') as f:
     configs_dict = json.load(f)
 
@@ -20,8 +27,9 @@ model_name = configs_dict.get("model_name")
 task_name = configs_dict.get("task_name")
 modified = configs_dict.get("modified")
 
-def test(data, model, mode="test"):
+def test(data, model, mode="test", batch_size=50):
     model.eval()
+    cleanup()
 
     if mode == "dev":
         x, y = data["dev_x"], data["dev_y"]
@@ -29,21 +37,33 @@ def test(data, model, mode="test"):
         x, y = data["test_x"], data["test_y"]
 
     x = [sent for sent in x]
-
     y = [data["classes"].index(c) for c in y]
+    
+    pred = []
+    
+    for i in range(0, len(x), batch_size):
+        batch_range = min(batch_size, len(x) - i)
+        batch_x = x[i:i + batch_range]
+        batch_pred, batch_attn = model(batch_x)
+        pred.extend(np.argmax(batch_pred.cpu().data.numpy(), axis=1).tolist())
 
-    pred, attn = model(x)
-    pred = np.argmax(pred.cpu().data.numpy(), axis=1)
     acc = sum([1 if p == y else 0 for p, y in zip(pred, y)]) / len(pred)
 
+    cleanup()
     return acc
 
 
 def train(data, params):
-    model = RNNAttnCls(**params).cuda(params["GPU"])
+    if params.get('GPU') is not None and params['GPU'] > -1:
+        device = torch.device('cuda:{}'.format(params['GPU']))
+    else:
+        device = torch.device('cpu')
+
+    model = RNNAttnCls(**params).to(device) #.cuda(params["GPU"])
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = optim.Adam(parameters, params["LEARNING_RATE"])
     criterion = nn.CrossEntropyLoss()
+    cleanup()
 
     max_dev_acc = 0
     max_test_acc = 0
@@ -57,7 +77,7 @@ def train(data, params):
             batch_x = [sent for sent in data["train_x"][i:i + batch_range]]
             batch_y = [data["classes"].index(c) for c in data["train_y"][i:i + batch_range]]
 
-            batch_y = Variable(torch.LongTensor(batch_y)).cuda(params["GPU"])
+            batch_y = Variable(torch.LongTensor(batch_y)).to(device) #.cuda(params["GPU"])
 
             optimizer.zero_grad()
             model.train()
@@ -72,16 +92,19 @@ def train(data, params):
                 print(tot_loss / cnt)
                 tot_loss = 0
                 cnt = 0
+                cleanup()
 
         dev_acc = test(data, model, mode="dev")
         test_acc = test(data, model)
-        print("epoch:", e + 1, "/ dev_acc:", dev_acc, "/ test_acc:", test_acc)
+        print("epoch:", e + 1, "/ dev_acc:", dev_acc , "/ test_acc:", test_acc)
 
         # if params["EARLY_STOPPING"] and dev_acc <= pre_dev_acc:
         #    print("early stopping by dev_acc!")
         #    break
         # else:
         #    pre_dev_acc = dev_acc
+
+        cleanup()
 
         if dev_acc > max_dev_acc:
             max_dev_acc = dev_acc
@@ -147,7 +170,7 @@ def main():
             # save_vocab(data["vocab"], task_name, model_name)
         print("=" * 20 + "TRAINING FINISHED" + "=" * 20)
     else:
-        model = load_cls(task_name, model_name).cuda(params["GPU"])
+        model = load_cls(task_name, model_name).to(device) #.cuda(params["GPU"])
 
         test_acc = test(data, model, params)
         print("test acc:", test_acc)

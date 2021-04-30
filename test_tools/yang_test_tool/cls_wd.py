@@ -1,6 +1,8 @@
-﻿import argparse
+import argparse
 import copy
 import json
+import os
+import sys
 
 import numpy as np
 import torch
@@ -8,7 +10,11 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.utils import shuffle
 from torch.autograd import Variable
-from tqdm import tqdm
+from tqdm import tqdm, trange
+
+p = os.path.abspath('.')
+print(p)
+sys.path.append(p)
 
 from cnntext_wd import CNN
 from utils import read_data, save_cls, load_cls
@@ -34,7 +40,7 @@ def train(data, params):
     for e in tqdm(range(params["EPOCH"])):
         data["train_x"], data["train_y"] = shuffle(data["train_x"], data["train_y"])
 
-        for i in range(0, len(data["train_x"]), params["BATCH_SIZE"]):
+        for i in trange(0, len(data["train_x"]), params["BATCH_SIZE"]):
             batch_range = min(params["BATCH_SIZE"], len(data["train_x"]) - i)
 
             batch_x = [sent for sent in data["train_x"][i:i + batch_range]]

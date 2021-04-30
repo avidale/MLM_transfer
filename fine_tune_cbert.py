@@ -93,9 +93,23 @@ def main():
         train_rate = 0.9989
         valid_rate = 0.00055
         test_rate = 0.00055
+    else:
+        train_rate = 0.9984
+        valid_rate = 0.0008
+        test_rate = 0.0008
 
     save_dict = {}
     acc_best = 0
+    
+    #run_transfer(model, tokenizer, task_name, model_name=model_name, modified=modified, set="dev")
+    #acc_0 = 1 - eval_acc(dict_file=dict_file, train_rate=train_rate, valid_rate=valid_rate,
+    #                         test_rate=test_rate, input_file=dev_file_0)
+    #acc_1 = 1 - eval_acc(dict_file=dict_file, train_rate=train_rate, valid_rate=valid_rate,
+    #                         test_rate=test_rate, input_file=dev_file_1)
+    #acc_avg = (acc_0 + acc_1) / 2
+    #print('{{"dev acc"：{}}}'.format(acc_avg))
+    
+    
     for e in trange(int(args.num_train_epochs), desc="Epoch"):
         tr_loss, avg_loss, avg_acc = 0, 0, 0.
         nb_tr_examples, nb_tr_steps = 0, 0
@@ -118,6 +132,7 @@ def main():
                 print("avg_loss: {}".format(avg_loss / 50))
                 avg_loss = 0
 
+        """
         run_transfer(model, tokenizer, task_name, model_name=model_name, modified=modified, set="dev")
         acc_0 = 1 - eval_acc(dict_file=dict_file, train_rate=train_rate, valid_rate=valid_rate,
                              test_rate=test_rate, input_file=dev_file_0)
@@ -146,6 +161,7 @@ def main():
         shutil.copy(generate_file_0, save_file_name_0)
         save_file_name_1 = os.path.join(save_file_path, "sentiment.test.1.{}.{}.{}.epoch_{}".format(model_name, acc_avg, bleu_avg, e))
         shutil.copy(generate_file_1, save_file_name_1)
+        """
         if save_every_epoch:
             save_model_name = "CBertForMaskedLM_" + task_name + "_epoch_" + str(e+1) + modified
             save_model_path = os.path.join(save_model_dir, save_model_name)
@@ -155,6 +171,6 @@ def main():
                 save_model_name = "CBertForMaskedLM_" + task_name + "_epoch_" + str(e+1) + modified
                 save_model_path = os.path.join(save_model_dir, save_model_name)
                 torch.save(model, save_model_path)
-    print("Best result: acc {} bleu {}".format(acc_best, save_dict[acc_best]))
+    # print("Best result: acc {} bleu {}".format(acc_best, save_dict[acc_best]))
 if __name__ == "__main__":
     main()
