@@ -182,6 +182,10 @@ def main():
     with open(config_file, 'r') as f:
         configs_dict = json.load(f)
 
+    the_set = 'test'
+    if len(sys.argv) >= 4:
+        the_set = sys.argv[3]
+
     task_name = configs_dict.get("task_name")
     print('config:', configs_dict)
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', cache_dir=PYTORCH_PRETRAINED_BERT_CACHE)
@@ -199,7 +203,7 @@ def main():
 
     model.cuda()
     model.eval()
-    run_transfer(model, tokenizer, task_name, model_name="cbert", modified=configs_dict['modified'], step=step)
+    run_transfer(model, tokenizer, task_name, model_name="cbert", modified=configs_dict['modified'], step=step, set=the_set)
     #delete_transfer(model, tokenizer, task_name)
 
 
